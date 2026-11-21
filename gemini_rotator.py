@@ -7,9 +7,9 @@ from core_router import CONFIG_PATH, ENDPOINTS, MODELS_URLS, FONT_URL, ALL_KEYS,
 app = FastAPI()
 
 @app.post("/ui/mode")
-async def ui_mode(mode: str = Form(...), prov: str = Form("gemini")):
+async def ui_mode(mode: str = Form(...), prov: str = Form("gemini"), lang: str = Form("ar")):
     cr.ROUTING_MODE = mode
-    return RedirectResponse(f"/ui?prov={prov}", status_code=303)
+    return RedirectResponse(f"/ui?prov={prov}&lang={lang}", status_code=303)
 
 @app.post("/ui/models")
 async def ui_models(request: Request):
@@ -83,39 +83,39 @@ async def ui_test(idx: int):
         STATS[k]["err"] = "Timeout"; return JSONResponse({"ok": False, "ms": 0, "status": "Error", "error": str(e)})
 
 @app.post("/ui/toggle/{idx}")
-async def ui_toggle(idx: int, prov: str = Form("gemini")):
+async def ui_toggle(idx: int, prov: str = Form("gemini"), lang: str = Form("ar")):
     with open(CONFIG_PATH) as f: cfg = yaml.safe_load(f) or {"model_list": []}
     cfg["model_list"][idx]["litellm_params"]["enabled"] = not cfg["model_list"][idx]["litellm_params"].get("enabled", True)
     with open(CONFIG_PATH, "w") as f: yaml.safe_dump(cfg, f, allow_unicode=True)
-    reload_pool(); return RedirectResponse(f"/ui?prov={prov}", status_code=303)
+    reload_pool(); return RedirectResponse(f"/ui?prov={prov}&lang={lang}", status_code=303)
 
 @app.post("/ui/bulk")
-async def ui_bulk(provider: str = Form(...), model: str = Form(...)):
+async def ui_bulk(provider: str = Form(...), model: str = Form(...), lang: str = Form("ar")):
     with open(CONFIG_PATH) as f: cfg = yaml.safe_load(f) or {"model_list": []}
     for m in cfg.get("model_list", []):
         if m["litellm_params"].get("provider", "gemini") == provider: m["litellm_params"]["model"] = model.strip()
     with open(CONFIG_PATH, "w") as f: yaml.safe_dump(cfg, f, allow_unicode=True)
-    reload_pool(); return RedirectResponse(f"/ui?prov={provider}", status_code=303)
+    reload_pool(); return RedirectResponse(f"/ui?prov={provider}&lang={lang}", status_code=303)
 
 @app.post("/ui/add")
-async def ui_add(provider: str = Form(...), api_key: str = Form(...), model: str = Form(...)):
+async def ui_add(provider: str = Form(...), api_key: str = Form(...), model: str = Form(...), lang: str = Form("ar")):
     with open(CONFIG_PATH) as f: cfg = yaml.safe_load(f) or {"model_list": []}
     cfg.setdefault("model_list", []).append({"model_name": "auto-free", "litellm_params": {"provider": provider, "model": model.strip(), "api_key": api_key.strip(), "enabled": True}})
     with open(CONFIG_PATH, "w") as f: yaml.safe_dump(cfg, f, allow_unicode=True)
-    reload_pool(); return RedirectResponse(f"/ui?prov={provider}", status_code=303)
+    reload_pool(); return RedirectResponse(f"/ui?prov={provider}&lang={lang}", status_code=303)
 
 @app.post("/ui/delete")
-async def ui_delete(index: int = Form(...), prov: str = Form("gemini")):
+async def ui_delete(index: int = Form(...), prov: str = Form("gemini"), lang: str = Form("ar")):
     with open(CONFIG_PATH) as f: cfg = yaml.safe_load(f) or {"model_list": []}
     cfg["model_list"].pop(index)
     with open(CONFIG_PATH, "w") as f: yaml.safe_dump(cfg, f, allow_unicode=True)
-    reload_pool(); return RedirectResponse(f"/ui?prov={prov}", status_code=303)
+    reload_pool(); return RedirectResponse(f"/ui?prov={prov}&lang={lang}", status_code=303)
 
 
 @app.post("/ui/joker")
-async def ui_joker(prov: str = Form("gemini")):
+async def ui_joker(prov: str = Form("gemini"), lang: str = Form("ar")):
     cr.regen_joker_key()
-    return RedirectResponse(f"/ui?prov={prov}", status_code=303)
+    return RedirectResponse(f"/ui?prov={prov}&lang={lang}", status_code=303)
 
 @app.get("/v1/models")
 async def list_v1_models(request: Request):
@@ -151,30 +151,32 @@ async def chat(request: Request):
     return JSONResponse({"error": "All keys exhausted"}, status_code=429)
 
 @app.get("/ui", response_class=HTMLResponse)
-async def ui(prov: str = "gemini"):
-    from ui_page import render_ui
+async def ui(prov: str = "gemini", lang: str = "ar"):
+    from ui_page import render_ui, I18N
+    t = I18N.get(lang, I18N["ar"])
     provs_list = [("gemini", "Google Gemini"), ("groq", "Groq"), ("openrouter", "OpenRouter"), ("cerebras", "Cerebras"), ("mistral", "Mistral")]
-    tabs = "".join([f"<a href='/ui?prov={pid}' class='{'tab active' if pid==prov else 'tab'}'>{pname} <span>{sum(1 for x in cr.ALL_KEYS if x['provider']==pid)}</span></a>" for pid, pname in provs_list])
+    tabs = "".join([f"<a href='/ui?prov={pid}&lang={lang}' class='{'tab active' if pid==prov else 'tab'}'>{pname} <span>{sum(1 for x in cr.ALL_KEYS if x['provider']==pid)}</span></a>" for pid, pname in provs_list])
     p_keys = [(i, x) for i, x in enumerate(cr.ALL_KEYS) if x["provider"] == prov]
     p_active = [x for _, x in p_keys if x["enabled"]]
     avg_ms = int(sum(STATS[x["api_key"]]["ms"] for x in p_active) / len(p_active)) if p_active else 0
     now = time.time()
     rows = ""
     for local_no, (i, x) in enumerate(p_keys, 1):
-        st = STATS.get(x["api_key"], {"ms": 500, "ok": 0, "fail": 0, "cooldown": 0, "err": "جاهز", "last": "-"})
+        st = STATS.get(x["api_key"], {"ms": 500, "ok": 0, "fail": 0, "cooldown": 0, "err": "200 OK", "last": "-"})
         spd_col = "#10b981" if st["ms"] < 600 else ("#f59e0b" if st["ms"] < 1500 else "#ef4444")
-        state_badge = "<span style='color:#94a3b8'>⏸️ موقوف</span>" if not x["enabled"] else (f"<span style='color:#f59e0b'>⏳ تهدئة ({int(st['cooldown']-now)}s)</span>" if st["cooldown"] > now else (f"<span style='color:#ef4444'>❌ {st['err']}</span>" if ("HTTP" in st["err"] or "Error" in st["err"]) else f"<span style='color:#10b981'>🟢 {st['err']}</span>"))
-        rows += f"<tr data-idx='{i}' data-ms='{st['ms']}' data-cap='{x['cap']}' style='opacity:{'1' if x['enabled'] else '0.45'}'><td>{local_no}</td><td><code>{x['model']}</code></td><td><b>{x['cap']}%</b></td><td id='ms-{i}' style='color:{spd_col};font-weight:bold'>{st['ms']} ms</td><td id='st-{i}'>{state_badge}</td><td>✅ {st['ok']} / ❌ {st['fail']}</td><td>{st['last']}</td><td><code>{x['api_key'][:6]}...{x['api_key'][-4:]}</code></td><td style='display:flex;gap:6px'><button type=button class='btn-t' onclick='testOne({i})'>فحص</button><form method=post action=/ui/toggle/{i} style=margin:0><input type=hidden name=prov value={prov}><button type=submit class='btn-g'>{'إيقاف' if x['enabled'] else 'تفعيل'}</button></form><form method=post action=/ui/delete style=margin:0><input type=hidden name=index value={i}><input type=hidden name=prov value={prov}><button type=submit class='btn-d'>حذف</button></form></td></tr>"
-    return render_ui(cr.JOKER_KEY, prov, tabs, len(p_active), len(p_keys), avg_ms, len(cr.ALL_KEYS), cr.ROUTING_MODE, ENDPOINTS.get(prov,""), MODELS_URLS.get(prov,""), rows, FONT_URL) + """<script>
-    const PR={gemini:[{id:"gemini-flash-lite-latest",t:"🆓 FREE | 84%"},{id:"gemini-3.0-flash",t:"🆓 FREE | 84%"},{id:"gemini-2.5-pro",t:"🆓 FREE | 95%"}],groq:[{id:"qwen/qwen3.8-27b",t:"🆓 FREE | 95%"},{id:"openai/gpt-oss-120b",t:"🆓 FREE | 95%"}],openrouter:[{id:"nvidia/nemotron-3-nano-30b-a3b-reasoning:free",t:"🆓 FREE | 84%"},{id:"qwen/qwen3-coder:free",t:"🆓 FREE | 95%"}],cerebras:[{id:"llama3.1-8b",t:"🆓 FREE | 84%"}],mistral:[{id:"codestral-latest",t:"🆓 FREE | 84%"}]};
+        err_txt = t["st_ready"] if st["err"] in ("جاهز", "200 OK") else st["err"]
+        state_badge = f"<span style='color:#94a3b8'>⏸️ {t['st_paused']}</span>" if not x["enabled"] else (f"<span style='color:#f59e0b'>⏳ {t['st_cool']} ({int(st['cooldown']-now)}s)</span>" if st["cooldown"] > now else (f"<span style='color:#ef4444'>❌ {err_txt}</span>" if ("HTTP" in err_txt or "Error" in err_txt) else f"<span style='color:#10b981'>🟢 {err_txt}</span>"))
+        rows += f"<tr data-idx='{i}' data-ms='{st['ms']}' data-cap='{x['cap']}' style='opacity:{'1' if x['enabled'] else '0.45'}'><td>{local_no}</td><td><code>{x['model']}</code></td><td><b>{x['cap']}%</b></td><td id='ms-{i}' style='color:{spd_col};font-weight:bold'>{st['ms']} ms</td><td id='st-{i}'>{state_badge}</td><td>✅ {st['ok']} / ❌ {st['fail']}</td><td>{st['last']}</td><td><code>{x['api_key'][:6]}...{x['api_key'][-4:]}</code></td><td style='display:flex;gap:6px'><button type=button class='btn-t' onclick='testOne({i})'>{t['btn_test']}</button><form method=post action=/ui/toggle/{i} style=margin:0><input type=hidden name=prov value={prov}><input type=hidden name=lang value={lang}><button type=submit class='btn-g'>{t['btn_stop'] if x['enabled'] else t['btn_start']}</button></form><form method=post action=/ui/delete style=margin:0><input type=hidden name=index value={i}><input type=hidden name=prov value={prov}><input type=hidden name=lang value={lang}><button type=submit class='btn-d'>{t['btn_del']}</button></form></td></tr>"
+    return render_ui(cr.JOKER_KEY, prov, lang, tabs, len(p_active), len(p_keys), avg_ms, len(cr.ALL_KEYS), cr.ROUTING_MODE, ENDPOINTS.get(prov,""), MODELS_URLS.get(prov,""), rows, FONT_URL) + """<script>
+    const PR={gemini:[{id:"gemini-flash-lite-latest",t:"FREE | 84%"},{id:"gemini-3.0-flash",t:"FREE | 84%"},{id:"gemini-2.5-pro",t:"FREE | 95%"}],groq:[{id:"qwen/qwen3.8-27b",t:"FREE | 95%"},{id:"openai/gpt-oss-120b",t:"FREE | 95%"}],openrouter:[{id:"nvidia/nemotron-3-nano-30b-a3b-reasoning:free",t:"FREE | 84%"},{id:"qwen/qwen3-coder:free",t:"FREE | 95%"}],cerebras:[{id:"llama3.1-8b",t:"FREE | 84%"}],mistral:[{id:"codestral-latest",t:"FREE | 84%"}]};
     function toast(m){const t=document.getElementById("toast");t.innerText=m;t.style.display="block";setTimeout(()=>t.style.display="none",3500)}
     let LAST_MODELS={pro:(PR[PROV]||[]).filter(x=>x.t.includes("95")),fast:(PR[PROV]||[]).filter(x=>!x.t.includes("95"))};
-    function renderGroups(id,data,q=""){const s=document.getElementById(id);if(!s)return;q=q.toLowerCase();const p=(data.pro||[]).filter(x=>x.id.toLowerCase().includes(q)),f=(data.fast||[]).filter(x=>x.id.toLowerCase().includes(q));let h="";if(p.length)h+=`<optgroup label="🏆 نماذج قوية للبرمجة">`+p.map(x=>`<option value="${x.id}">${x.id} [${x.t}]</option>`).join("")+`</optgroup>`;if(f.length)h+=`<optgroup label="⚡ نماذج سريعة وخفيفة">`+f.map(x=>`<option value="${x.id}">${x.id} [${x.t}]</option>`).join("")+`</optgroup>`;s.innerHTML=h||`<option value="">لا توجد نتائج</option>`}
+    function renderGroups(id,data,q=""){const s=document.getElementById(id);if(!s)return;q=q.toLowerCase();const p=(data.pro||[]).filter(x=>x.id.toLowerCase().includes(q)),f=(data.fast||[]).filter(x=>x.id.toLowerCase().includes(q));let h="";if(p.length)h+=`<optgroup label="${TXT.grp_pro}">`+p.map(x=>`<option value="${x.id}">${x.id} [${x.t}]</option>`).join("")+`</optgroup>`;if(f.length)h+=`<optgroup label="${TXT.grp_fast}">`+f.map(x=>`<option value="${x.id}">${x.id} [${x.t}]</option>`).join("")+`</optgroup>`;s.innerHTML=h||`<option value="">${TXT.no_res}</option>`}
     function filterSel(id,q){renderGroups(id,LAST_MODELS,q)}renderGroups("bm",LAST_MODELS);renderGroups("am",LAST_MODELS);
-    async function fetchLive(){toast("⏳ جاري فلترة وجلب النماذج المجانية...");const r=await fetch("/ui/models",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({provider:PROV,api_key:"USE_EXISTING"})});const d=await r.json();if(d.pro||d.fast){LAST_MODELS=d;renderGroups("bm",d);renderGroups("am",d);toast("✅ تم جلب "+((d.pro?.length||0)+(d.fast?.length||0))+" نموذج مصفّى!")}else toast("⚠️ "+(d.error||"خطأ"))}
-    async function autoPick(apply){const box=document.getElementById("bench-box");box.innerHTML="<span style=color:#38bdf8>⏳ جاري قياس سرعة وقدرة النماذج المجانية...</span>";const r=await fetch("/ui/autobench",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({provider:PROV,apply:apply})});const d=await r.json();if(d.models&&d.models.length){let h="<table style=background:#070b14;border-radius:10px><tr><th>الترتيب</th><th>النموذج</th><th>القدرة</th><th>السرعة</th><th>الكفاءة</th></tr>";d.models.forEach((m,i)=>{const c=m.ms<700?"#10b981":(m.ms<1500?"#f59e0b":"#ef4444");h+=`<tr><td>${i===0?"🏆 #1":"#"+(i+1)}</td><td><code>${m.id}</code></td><td><b>${m.cap}%</b></td><td style="color:${c};font-weight:bold">${m.ms} ms</td><td>${m.score}</td></tr>`});box.innerHTML=h+"</table>";if(d.applied){toast("🏆 تم تطبيق الأفضل: "+d.applied);setTimeout(()=>location.reload(),1500)}}else box.innerHTML="<span style=color:#ef4444>⚠️ "+(d.error||"خطأ")+"</span>"}
+    async function fetchLive(){toast(TXT.t_fetching);const r=await fetch("/ui/models",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({provider:PROV,api_key:"USE_EXISTING"})});const d=await r.json();if(d.pro||d.fast){LAST_MODELS=d;renderGroups("bm",d);renderGroups("am",d);toast(TXT.t_fetched)}else toast("⚠️ "+(d.error||"Error"))}
+    async function autoPick(apply){const box=document.getElementById("bench-box");box.innerHTML="<span style=color:#38bdf8>"+TXT.t_benching+"</span>";const r=await fetch("/ui/autobench",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({provider:PROV,apply:apply})});const d=await r.json();if(d.models&&d.models.length){let h="<table style=background:#070b14;border-radius:10px><tr><th>#</th><th>Model</th><th>Power</th><th>Latency</th><th>Score</th></tr>";d.models.forEach((m,i)=>{const c=m.ms<700?"#10b981":(m.ms<1500?"#f59e0b":"#ef4444");h+=`<tr><td>${i===0?"🏆 #1":"#"+(i+1)}</td><td><code>${m.id}</code></td><td><b>${m.cap}%</b></td><td style="color:${c};font-weight:bold">${m.ms} ms</td><td>${m.score}</td></tr>`});box.innerHTML=h+"</table>";if(d.applied){toast(TXT.t_applied+d.applied);setTimeout(()=>location.reload(),1500)}}else box.innerHTML="<span style=color:#ef4444>⚠️ "+(d.error||"Error")+"</span>"}
     async function testOne(i){const msEl=document.getElementById("ms-"+i),stEl=document.getElementById("st-"+i);msEl.innerText="⏳...";const r=await fetch("/ui/test/"+i,{method:"POST"});const d=await r.json();if(d.ok){msEl.innerText=d.ms+" ms";msEl.style.color=d.ms<600?"#10b981":"#f59e0b";stEl.innerHTML="<span style=color:#10b981>🟢 "+d.status+"</span>";msEl.parentElement.dataset.ms=d.ms}else{msEl.innerText=d.ms+" ms";msEl.style.color="#ef4444";stEl.innerHTML="<span style=color:#ef4444>❌ "+d.status+"</span>"}}
-    function testProvider(){const idxs=Array.from(document.querySelectorAll("#tb tr[data-idx]")).map(r=>r.dataset.idx);toast("⚡ فحص "+idxs.length+" مفتاح...");idxs.forEach(i=>testOne(i))}
+    function testProvider(){const idxs=Array.from(document.querySelectorAll("#tb tr[data-idx]")).map(r=>r.dataset.idx);toast(TXT.t_testing);idxs.forEach(i=>testOne(i))}
     function sortRows(by){const tb=document.getElementById("tb"),rs=Array.from(tb.querySelectorAll("tr[data-idx]"));rs.sort((a,b)=>by==="fast"?a.dataset.ms-b.dataset.ms:(by==="cap"?b.dataset.cap-a.dataset.cap:a.children.innerText-b.children.innerText));rs.forEach(r=>tb.appendChild(r))}
     </script></body></html>"""
 

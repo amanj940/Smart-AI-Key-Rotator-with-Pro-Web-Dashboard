@@ -16,7 +16,7 @@ MODELS_URLS = {
     "cerebras": base64.b64decode("aHR0cHM6Ly9hcGkuY2VyZWJyYXMuYWkvdjEvbW9kZWxz").decode(),
     "mistral": base64.b64decode("aHR0cHM6Ly9hcGkubWlzdHJhbC5haS92MS9tb2RlbHM=").decode(),
 }
-FONT_URL = base64.b64decode("aHR0cHM6Ly9mb250cy5nb29nbGVhcGlzLmNvbS9jc3MyP2ZhbWlseT1DYWlybzp3Z2h0QDUwMDs2MDA7NzAwOzgwMCZmYW1pbHk9SmV0QnJhaW5zK01vbm86d2dodEA1MDA7NjAwJmRpc3BsYXk9c3dhcA==").decode()
+FONT_URL = "https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap"
 
 def cap_score(mod: str) -> int:
     m = mod.lower()
