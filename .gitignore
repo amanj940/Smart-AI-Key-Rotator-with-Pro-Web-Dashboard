@@ -1,0 +1,4 @@
+litellm_config.yaml
+__pycache__/
+*.log
+.env

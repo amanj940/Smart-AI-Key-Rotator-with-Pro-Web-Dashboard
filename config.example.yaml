@@ -1,0 +1,7 @@
+model_list:
+  - model_name: auto-free
+    litellm_params:
+      provider: gemini
+      model: gemini-flash-lite-latest
+      api_key: "YOUR_API_KEY_HERE"
+      enabled: true
