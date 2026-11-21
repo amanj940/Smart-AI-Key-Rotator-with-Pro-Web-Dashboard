@@ -1,3 +1,4 @@
+import secrets
 import yaml, httpx, base64, time, asyncio
 
 CONFIG_PATH = "/home/kozer/litellm_config.yaml"
@@ -44,3 +45,52 @@ def pick_candidates():
     return active
 
 reload_pool()
+
+JOKER_KEY = ""
+
+def get_joker_key():
+    global JOKER_KEY
+    with open(CONFIG_PATH) as f:
+        cfg = yaml.safe_load(f) or {}
+    jk = cfg.get("joker_key", "")
+    if not jk:
+        jk = "sk-joker-" + secrets.token_hex(16)
+        cfg["joker_key"] = jk
+        with open(CONFIG_PATH, "w") as f:
+            yaml.safe_dump(cfg, f, allow_unicode=True)
+    JOKER_KEY = jk
+    return jk
+
+def regen_joker_key():
+    global JOKER_KEY
+    with open(CONFIG_PATH) as f:
+        cfg = yaml.safe_load(f) or {}
+    JOKER_KEY = "sk-joker-" + secrets.token_hex(16)
+    cfg["joker_key"] = JOKER_KEY
+    with open(CONFIG_PATH, "w") as f:
+        yaml.safe_dump(cfg, f, allow_unicode=True)
+    return JOKER_KEY
+
+get_joker_key()
+import secrets
+JOKER_KEY = ""
+def get_joker_key():
+    global JOKER_KEY
+    with open(CONFIG_PATH) as f: cfg = yaml.safe_load(f) or {}
+    jk = cfg.get("joker_key", "")
+    if not jk:
+        jk = "sk-joker-" + secrets.token_hex(16)
+        cfg["joker_key"] = jk
+        with open(CONFIG_PATH, "w") as f: yaml.safe_dump(cfg, f, allow_unicode=True)
+    JOKER_KEY = jk
+    return jk
+
+def regen_joker_key():
+    global JOKER_KEY
+    with open(CONFIG_PATH) as f: cfg = yaml.safe_load(f) or {}
+    JOKER_KEY = "sk-joker-" + secrets.token_hex(16)
+    cfg["joker_key"] = JOKER_KEY
+    with open(CONFIG_PATH, "w") as f: yaml.safe_dump(cfg, f, allow_unicode=True)
+    return JOKER_KEY
+
+get_joker_key()

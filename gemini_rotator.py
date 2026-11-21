@@ -111,8 +111,24 @@ async def ui_delete(index: int = Form(...), prov: str = Form("gemini")):
     with open(CONFIG_PATH, "w") as f: yaml.safe_dump(cfg, f, allow_unicode=True)
     reload_pool(); return RedirectResponse(f"/ui?prov={prov}", status_code=303)
 
+
+@app.post("/ui/joker")
+async def ui_joker(prov: str = Form("gemini")):
+    cr.regen_joker_key()
+    return RedirectResponse(f"/ui?prov={prov}", status_code=303)
+
+@app.get("/v1/models")
+async def list_v1_models(request: Request):
+    auth = request.headers.get("Authorization", "")
+    if cr.JOKER_KEY and auth != f"Bearer {cr.JOKER_KEY}":
+        return JSONResponse({"error": "Invalid Joker API Key"}, status_code=401)
+    return JSONResponse({"object": "list", "data": [{"id": "auto-free", "object": "model", "owned_by": "joker-router"}]})
+
 @app.post("/v1/chat/completions")
 async def chat(request: Request):
+    auth = request.headers.get("Authorization", "")
+    if cr.JOKER_KEY and auth != f"Bearer {cr.JOKER_KEY}":
+        return JSONResponse({"error": "Invalid Joker API Key"}, status_code=401)
     orig = await request.json()
     for x in pick_candidates():
         k = x["api_key"]; body = {**orig, "model": x["model"]}; h = {"Authorization": f"Bearer {k}", "Content-Type": "application/json"}; t0 = time.time()
@@ -149,7 +165,7 @@ async def ui(prov: str = "gemini"):
         spd_col = "#10b981" if st["ms"] < 600 else ("#f59e0b" if st["ms"] < 1500 else "#ef4444")
         state_badge = "<span style='color:#94a3b8'>⏸️ موقوف</span>" if not x["enabled"] else (f"<span style='color:#f59e0b'>⏳ تهدئة ({int(st['cooldown']-now)}s)</span>" if st["cooldown"] > now else (f"<span style='color:#ef4444'>❌ {st['err']}</span>" if ("HTTP" in st["err"] or "Error" in st["err"]) else f"<span style='color:#10b981'>🟢 {st['err']}</span>"))
         rows += f"<tr data-idx='{i}' data-ms='{st['ms']}' data-cap='{x['cap']}' style='opacity:{'1' if x['enabled'] else '0.45'}'><td>{local_no}</td><td><code>{x['model']}</code></td><td><b>{x['cap']}%</b></td><td id='ms-{i}' style='color:{spd_col};font-weight:bold'>{st['ms']} ms</td><td id='st-{i}'>{state_badge}</td><td>✅ {st['ok']} / ❌ {st['fail']}</td><td>{st['last']}</td><td><code>{x['api_key'][:6]}...{x['api_key'][-4:]}</code></td><td style='display:flex;gap:6px'><button type=button class='btn-t' onclick='testOne({i})'>فحص</button><form method=post action=/ui/toggle/{i} style=margin:0><input type=hidden name=prov value={prov}><button type=submit class='btn-g'>{'إيقاف' if x['enabled'] else 'تفعيل'}</button></form><form method=post action=/ui/delete style=margin:0><input type=hidden name=index value={i}><input type=hidden name=prov value={prov}><button type=submit class='btn-d'>حذف</button></form></td></tr>"
-    return render_ui(prov, tabs, len(p_active), len(p_keys), avg_ms, len(cr.ALL_KEYS), cr.ROUTING_MODE, ENDPOINTS.get(prov,""), MODELS_URLS.get(prov,""), rows, FONT_URL) + """<script>
+    return render_ui(cr.JOKER_KEY, prov, tabs, len(p_active), len(p_keys), avg_ms, len(cr.ALL_KEYS), cr.ROUTING_MODE, ENDPOINTS.get(prov,""), MODELS_URLS.get(prov,""), rows, FONT_URL) + """<script>
     const PR={gemini:[{id:"gemini-flash-lite-latest",t:"🆓 FREE | 84%"},{id:"gemini-3.0-flash",t:"🆓 FREE | 84%"},{id:"gemini-2.5-pro",t:"🆓 FREE | 95%"}],groq:[{id:"qwen/qwen3.8-27b",t:"🆓 FREE | 95%"},{id:"openai/gpt-oss-120b",t:"🆓 FREE | 95%"}],openrouter:[{id:"nvidia/nemotron-3-nano-30b-a3b-reasoning:free",t:"🆓 FREE | 84%"},{id:"qwen/qwen3-coder:free",t:"🆓 FREE | 95%"}],cerebras:[{id:"llama3.1-8b",t:"🆓 FREE | 84%"}],mistral:[{id:"codestral-latest",t:"🆓 FREE | 84%"}]};
     function toast(m){const t=document.getElementById("toast");t.innerText=m;t.style.display="block";setTimeout(()=>t.style.display="none",3500)}
     let LAST_MODELS={pro:(PR[PROV]||[]).filter(x=>x.t.includes("95")),fast:(PR[PROV]||[]).filter(x=>!x.t.includes("95"))};
@@ -164,4 +180,4 @@ async def ui(prov: str = "gemini"):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=4000, log_level="warning")
+    uvicorn.run(app, host="0.0.0.0", port=4000, log_level="warning")

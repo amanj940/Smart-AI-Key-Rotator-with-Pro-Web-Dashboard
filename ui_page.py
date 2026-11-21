@@ -1,4 +1,4 @@
-def render_ui(prov, tabs, p_active_cnt, p_keys_cnt, avg_ms, total_cnt, routing_mode, ep_chat, ep_mod, rows, font_url):
+def render_ui(joker_key, prov, tabs, p_active_cnt, p_keys_cnt, avg_ms, total_cnt, routing_mode, ep_chat, ep_mod, rows, font_url):
     s_smart = "selected" if routing_mode == "smart" else ""
     s_power = "selected" if routing_mode == "power" else ""
     empty_row = '<tr><td colspan=9 style="text-align:center;color:#64748b;padding:24px">لا توجد مفاتيح لهذا المزود بعد</td></tr>'
@@ -25,6 +25,17 @@ def render_ui(prov, tabs, p_active_cnt, p_keys_cnt, avg_ms, total_cnt, routing_m
     .ep-box{{background:#070b14;border:1px solid #1e293b;padding:14px 18px;border-radius:10px;font-size:13.5px;color:#93c5fd;direction:ltr;text-align:left;margin-top:14px}}
     #toast{{position:fixed;bottom:24px;left:24px;background:#1e293b;border:1.5px solid #38bdf8;padding:14px 24px;border-radius:12px;font-size:15px;font-weight:700;display:none}}
     </style></head><body>
+    <div style="background:#0f172a;border:1px solid #1e293b;border-radius:12px;padding:10px 18px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:15px;font-weight:700;color:#f8fafc">🃏 مفتاح الجوكر الموحد:</span>
+        <span style="font-size:12px;color:#64748b;font-family:'JetBrains Mono',monospace">http://localhost:4000/v1 | auto-free</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <input type=text id="jk-val" value="{joker_key}" readonly style="height:36px;width:320px;font-size:13px;color:#38bdf8;font-weight:600;direction:ltr;text-align:center;padding:0 10px">
+        <button type=button class=btn-s style="height:36px;padding:0 14px;font-size:13px" onclick="navigator.clipboard.writeText(document.getElementById('jk-val').value);toast('📋 تم نسخ مفتاح الجوكر!')">📋 نسخ</button>
+        <form method=post action=/ui/joker style="margin:0"><input type=hidden name=prov value={prov}><button type=submit class=btn-t style="height:36px;padding:0 14px;font-size:13px">🔄 تجديد</button></form>
+      </div>
+    </div>
     <div class=tabs>{tabs}</div>
     <div class=stats>
       <div class=stat>مفاتيح {prov.upper()} النشطة<b>{p_active_cnt} / {p_keys_cnt}</b></div>
